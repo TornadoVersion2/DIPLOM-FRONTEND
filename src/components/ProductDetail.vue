@@ -5,21 +5,80 @@
     <div v-else-if="product" class="product-content">
       <div class="product-header">
         <h1>{{ product.name }}</h1>
-        <button @click="goBack" class="back-button">← Назад к списку</button>
+        <button @click="goBack" class="back-button">← Назад</button>
+        <button v-if="user?.roles?.includes(Role.MANAGER)" @click="editProduct" class="edit-button">Редактировать
+          товар</button>
       </div>
 
-      <div class="product-info">
+      <div v-if="editing === true" class="product-info">
+        <form @submit.prevent="handleSubmit" class="product-form">
+          <div class="form-group">
+            <label for="name">Название:</label>
+            <input type="text" id="name" v-model="form.name" required placeholder="Введите название товара" />
+          </div>
+
+          <div class="form-group">
+            <label for="description">Описание:</label>
+            <textarea id="description" v-model="form.description" required
+              placeholder="Введите описание товара"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="price">Цена:</label>
+            <input type="number" id="price" v-model="form.price" required min="0" placeholder="Введите цену" />
+          </div>
+
+          <div class="form-group">
+            <label for="quantity">Количество:</label>
+            <input type="number" id="quantity" v-model="form.quantity" required min="0"
+              placeholder="Введите количество" />
+          </div>
+
+          <div class="form-group">
+            <label>Категория:</label>
+            <!-- <div class="search-box">
+          <input type="text" v-model="searchQuery" placeholder="Найти категорию..." class="search-input" />
+        </div> -->
+          </div>
+
+          <div v-if="form.categoryId > 0" class="form-group">
+            <label>Фильтры:</label>
+            <select class="form-select">
+              <option selected>Выберите фильтр</option>
+              <option v-for="filter in filters">
+                {{ filter.name }}
+              </option>
+            </select>
+            <!-- <input type="number" id="quantity" v-model="form.quantity" required min="0" placeholder="Введите количество" /> -->
+          </div>
+
+          <div class="form-group">
+            <input type="file" id="image" @change="handleImageUpload" accept="image/*" class="form-control" />
+            <div v-if="imagePreview" class="image-preview">
+              <img :src="imagePreview" alt="Preview" />
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" :disabled="loading" class="submit-button">
+              {{ loading ? 'Сохранение...' : 'Сохранить' }}
+            </button>
+
+            <button @click="editProduct" class="cancel-button">
+              Отмена
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div v-if="editing === false" class="product-info">
         <div class="product-main">
           <div class="product-description">
             <h2>Описание</h2>
             <p>{{ product.description }}</p>
           </div>
           <div class="product-image">
-            <img 
-              :src="`http://localhost:3000/api/images/${product.imageUrl}`" 
-              :alt="product.name"
-              class="product-img"
-            />
+            <img :src="`http://localhost:3000/api/images/${product.imageUrl}`" :alt="product.name" class="product-img" />
           </div>
 
           <div class="product-details">
@@ -39,7 +98,8 @@
         </div>
 
         <div class="product-actions">
-          <button @click="confirmDelete" class="delete-button" v-if="user?.roles.includes(Role.ADMIN) || user?.roles.includes(Role.MANAGER)">
+          <button @click="confirmDelete" class="delete-button"
+            v-if="user?.roles.includes(Role.ADMIN) || user?.roles.includes(Role.MANAGER)">
             Удалить товар
           </button>
         </div>
@@ -64,23 +124,15 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
+import { useDefaultStore } from '../storages/default.store'
+import { storeToRefs } from 'pinia'
 import authService from '../services/auth.service'
-import { Role } from '../services/auth.service'
-interface Product {
-  id: number
-  name: string
-  description: string
-  price: number
-  quantity: number
-  categoryId: number
-  imageUrl?: string
-}
-
-interface Category {
-  id: number
-  name: string
-  description?: string
-}
+import imagesService from '@/services/images.service'
+import productsService from '@/services/products.service'
+import type { Product } from '../types/product.types'
+import type { Category } from '../types/categories.types'
+import type { Filter } from '../types/filter.types'
+import { Role } from '../types/auth.types'
 
 const route = useRoute()
 const router = useRouter()
@@ -89,8 +141,21 @@ const categories = ref<Category[]>([])
 const loading = ref(true)
 const error = ref('')
 const showDeleteModal = ref(false)
-const user = authService.getCurrentUser()
+const { user } = storeToRefs(useDefaultStore())
+const editing = ref(false)
 
+const imagePreview = ref<string | undefined>(undefined)
+const selectedFile = ref<File | null>(null)
+const form = ref<Omit<Product, 'id'>>({
+  name: '',
+  description: '',
+  price: 0,
+  quantity: 0,
+  categoryId: 0,
+  managerId: 0
+})
+
+const filters = ref<Filter[]>([])
 const getCategoryName = (categoryId: number) => {
   const category = categories.value.find(c => c.id === categoryId)
   return category ? category.name : 'Без категории'
@@ -135,7 +200,31 @@ const fetchProduct = async () => {
 }
 
 const goBack = () => {
+  if (editing.value) {
+    editing.value = false
+    return
+  }
   router.back()
+}
+
+const editProduct = () => {
+  editing.value = !editing.value
+  console.log("form: ", form.value)
+  console.log("Product: ", product.value)
+  if (product.value) {
+    form.value.name = product.value.name
+    form.value.description = product.value.description
+    form.value.price = product.value.price
+    form.value.quantity = product.value.quantity
+    form.value.categoryId = product.value.categoryId
+    form.value.managerId = user.value.id
+    console.log("imagePrevew: ", imagePreview.value)
+    console.log("productImage: ", product.value.imageUrl)
+    imagePreview.value = product.value.imageUrl
+    console.log("imagePrevew: ", imagePreview.value)
+    console.log("productImage: ", product.value.imageUrl)
+  }
+
 }
 
 const confirmDelete = () => {
@@ -161,6 +250,43 @@ const deleteProduct = async () => {
     showDeleteModal.value = false
   }
 }
+
+const handleSubmit = async () => {
+  if (loading.value) return
+
+  try {
+    loading.value = true
+    error.value = ''
+
+    let imageUrl = ''
+    if (selectedFile.value) {
+      imageUrl = await imagesService.uploadImage(selectedFile.value)
+    }
+    if (user)
+      if (product.value)
+        await productsService.updateProduct(product.value.id, {
+          ...form.value,
+          imageUrl,
+          managerId: user.value.id
+        })
+    router.push('/products')
+  } catch (err) {
+    error.value = 'Произошла ошибка при создании товара'
+    console.error('Error creating product:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleImageUpload = (event: Event) => {
+  const input = event.target as HTMLInputElement
+
+  if (input.files && input.files[0]) {
+    selectedFile.value = input.files[0]
+    imagePreview.value = URL.createObjectURL(input.files[0])
+  }
+}
+
 
 onMounted(() => {
   fetchProduct()
@@ -215,6 +341,20 @@ onMounted(() => {
 }
 
 .back-button:hover {
+  background-color: #5a6268;
+}
+
+.edit-button {
+  padding: 0.5rem 1rem;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.edit-button:hover {
   background-color: #5a6268;
 }
 
@@ -290,7 +430,6 @@ onMounted(() => {
   background-color: #c82333;
 }
 
-/* Стили для модального окна */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -368,5 +507,122 @@ onMounted(() => {
 
 .product-img:hover {
   transform: scale(1.02);
+}
+
+
+.add-product {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.product-form {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-group input,
+
+/* .search-box {
+  flex: 1;
+  min-width: 200px;
+} */
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.form-group textarea {
+  height: 100px;
+  resize: vertical;
+}
+
+.form-group select {
+  background-color: white;
+  cursor: pointer;
+}
+
+.form-group select:focus {
+  outline: none;
+  border-color: #4CAF50;
+}
+
+.search-input {
+  flex: 1;
+  margin-bottom: 10px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.submit-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  background-color: #4CAF50;
+  color: white;
+  cursor: pointer;
+}
+
+.submit-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.cancel-button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  background-color: #f5f5f5;
+  color: #666;
+  text-decoration: none;
+  border: 1px solid #ddd;
+}
+
+.error {
+  color: red;
+  padding: 10px;
+  background-color: #ffebee;
+  border-radius: 4px;
+  margin-top: 20px;
+}
+
+.image-preview {
+  margin-top: 10px;
+  max-width: 200px;
+}
+
+.image-preview img {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.form-control {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
 }
 </style> 

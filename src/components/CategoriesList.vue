@@ -23,7 +23,7 @@
             </button>
           </div>
         </div>
-        <p v-if="category.description" class="description">{{ category.description }}</p>        
+        <p v-if="category.description" class="description">{{ category.description }}</p>
       </div>
     </div>
 
@@ -69,8 +69,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import categoriesService from '../services/categories.service'
-import productsService from '../services/products.service'
-import type { Category } from '../services/categories.service'
+import type { Category } from '../types/categories.types'
+import { useDefaultStore } from '../storages/default.store'
+import { storeToRefs } from 'pinia'
+import authService from '@/services/auth.service'
+
+
 const categories = ref<Category[]>([])
 const loading = ref(true)
 const error = ref('')
@@ -78,6 +82,7 @@ const showAddModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteModal = ref(false)
 const categoryToDelete = ref<Category | null>(null)
+const { user } = storeToRefs(useDefaultStore())
 
 const categoryForm = ref({
   id: null as number | null,
@@ -89,7 +94,8 @@ const fetchCategories = async () => {
   try {
     loading.value = true
     error.value = ''
-    categories.value = await categoriesService.getAllCategories()
+    // categories.value = await categoriesService.getAllCategories()
+    categories.value = await categoriesService.getCategoryByManager(user.value.id)
   } catch (err) {
     error.value = 'Произошла ошибка при загрузке категорий'
     console.error('Error fetching categories:', err)
@@ -121,7 +127,8 @@ const submitCategory = async () => {
     } else {
       await categoriesService.createCategory({
         name: categoryForm.value.name,
-        description: categoryForm.value.description
+        description: categoryForm.value.description,
+        managerId: user.value.id
       })
     }
 
@@ -175,6 +182,10 @@ const closeModal = () => {
 
 onMounted(() => {
   fetchCategories()
+  const currentUser = authService.getCurrentUser()
+  if (currentUser){
+    user.value = currentUser
+  }
 })
 </script>
 

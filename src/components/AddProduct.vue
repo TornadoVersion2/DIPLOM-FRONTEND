@@ -1,3 +1,129 @@
+<script setup lang="ts">
+import { ref, onMounted, watch, reactive } from 'vue'
+import { useRouter } from 'vue-router'
+import { useDefaultStore } from '../storages/default.store'
+import { storeToRefs } from 'pinia'
+import categoriesService from '../services/categories.service'
+import productsService from '../services/products.service'
+import imagesService from '../services/images.service'
+import authService from '../services/auth.service'
+import filterService from '../services/filter.service'
+import type { Category } from '../types/categories.types'
+import type { Product } from '../types/product.types'
+import type { Filter, FilterProduct } from '../types/filter.types'
+
+const router = useRouter()
+const error = ref('')
+const loading = ref(false)
+const imagePreview = ref<string | null>(null)
+const selectedFile = ref<File | null>(null)
+const selectedCategoryId = ref(0)
+const categories = ref<Category[]>([])
+const { user } = storeToRefs(useDefaultStore())
+const filters = ref<Filter[]>([])
+const noneRangedFilterNames = ref<string[]>([])
+const RangedFilterNames = ref<string[]>([])
+const RangedProductFilters = ref<Map<Filter, number>>(reactive(new Map()))
+const noneRangedProductFilters = ref<number[]>([])
+
+
+const form = ref<Omit<Product, 'id'>>({
+  name: '',
+  description: '',
+  price: 0,
+  quantity: 0,
+  categoryId: 0,
+  managerId: 0
+})
+
+const addFilterProducts = async (filter: FilterProduct) => {
+
+}
+
+const fetchCategories = async () => {
+  try {
+    categories.value = await categoriesService.getAllCategories()
+  } catch (err) {
+    error.value = 'Произошла ошибка при загрузке категорий'
+    console.error('Error fetching categories:', err)
+  }
+}
+
+const fetchFilters = async () => {
+  if (form.value.categoryId > 0) {
+    try {
+      filters.value = await filterService.getFilterByCategory(form.value.categoryId)
+    } catch (err) {
+      error.value = 'Произошла ошибка при загрузке фильтров'
+      console.error('Error fetching filters:', err)
+    }
+  }
+
+  filtrateFilters()
+}
+
+const handleImageUpload = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  if (input.files && input.files[0]) {
+    selectedFile.value = input.files[0]
+    imagePreview.value = URL.createObjectURL(input.files[0])
+  }
+}
+
+const handleSubmit = async () => {
+  if (loading.value) return
+  try {
+    loading.value = true
+    error.value = ''
+    let imageUrl = ''
+    if (selectedFile.value) {
+      imageUrl = await imagesService.uploadImage(selectedFile.value)
+    }
+    const prod = await productsService.createProduct({
+      ...form.value,
+      imageUrl,
+      managerId: user.value.id,
+
+    })
+    noneRangedProductFilters.value.forEach((id) => filterService.createFilterProducts({ filterId: id, productId: prod.id }))
+    RangedProductFilters.value.forEach((value, filter) => filterService.createFilterProducts({ filterId: filter.id, productId: prod.id, value }))
+    router.push('/ProductsForManager')
+  } catch (err) {
+    error.value = 'Произошла ошибка при создании товара'
+    console.error('Error creating product:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleChangeNoneRangedFilter = async (id: string) => {
+  noneRangedProductFilters.value.push(Number(id))
+}
+
+const handleChangeRangedFilter = async (id: Filter, value: string) => {
+  RangedProductFilters.value.set(id, Number(value))
+}
+
+const filtrateFilters = () => {
+  noneRangedFilterNames.value = [...new Set(filters.value.filter((filter) => !filter.isRanged).map((filter) => filter.name))]
+  RangedFilterNames.value = [...new Set(filters.value.filter((filter) => filter.isRanged).map((filter) => filter.name))]
+}
+
+
+watch([selectedCategoryId], () => {
+  form.value.categoryId = selectedCategoryId.value
+  fetchFilters()
+})
+
+onMounted(() => {
+  fetchCategories()
+  const currentUser = authService.getCurrentUser()
+  if (currentUser) {
+    user.value = currentUser
+  }
+})
+</script>
+
 <template>
   <div class="add-product">
     <h2>Добавление товара</h2>
@@ -23,13 +149,37 @@
       </div>
 
       <div class="form-group">
-        <label for="categoryId">Категория:</label>
-        <select id="categoryId" v-model="form.categoryId" required class="form-select">
-          <option value="">Выберите категорию</option>
+        <label>Категория:</label>
+        <select v-model="selectedCategoryId" required class="form-select">
+          <option value=0>Выберите категорию</option>
           <option v-for="category in categories" :key="category.id" :value="category.id">
             {{ category.name }}
           </option>
         </select>
+      </div>
+
+      <label v-if="filters.length > 0">Фильтры:</label>
+      <div v-if="form.categoryId > 0" v-for="filterName in noneRangedFilterNames" class="form-group">
+        <select class="form-select" @change="(e) => handleChangeNoneRangedFilter(e.currentTarget!.value)">
+          <option selected>{{ filterName }}</option>
+          <div v-for="filter in filters">
+            <option :value="filter.id" v-if="filter.name === filterName">
+              {{ filter.name }} {{ filter.possibleValue }}
+            </option>
+          </div>
+        </select>
+      </div>
+
+
+      <div v-if="form.categoryId > 0" v-for="filterName in RangedFilterNames" class="form-group">
+        <div v-for="filter in filters">
+          <div v-if="filter.name === filterName">
+            <label>{{ filterName }}:</label>
+            <input @change="(e) => handleChangeRangedFilter(filter, e.currentTarget!.value)" type="number"
+              :min="filter.minValue" :max="filter.maxValue" step="0.01" id="min-value" required
+              placeholder="Введите значение фильтра" />
+          </div>
+        </div>
       </div>
 
       <div class="form-group">
@@ -44,83 +194,12 @@
         <button type="submit" :disabled="loading" class="submit-button">
           {{ loading ? 'Сохранение...' : 'Сохранить' }}
         </button>
-        <RouterLink to="/products" class="cancel-button">Отмена</RouterLink>
+        <RouterLink to="/ProductsForManager" class="cancel-button">Отмена</RouterLink>
       </div>
     </form>
     <div v-if="error" class="error">{{ error }}</div>
   </div>
 </template>
-
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import categoriesService from '../services/categories.service'
-import productsService from '../services/products.service'
-import imagesService from '../services/images.service'
-import type { Category } from '../services/categories.service'
-import type { Product } from '../services/products.service'
-
-const router = useRouter()
-const error = ref('')
-const loading = ref(false)
-const categories = ref<Category[]>([])
-const imagePreview = ref<string | null>(null)
-const selectedFile = ref<File | null>(null)
-
-const form = ref<Omit<Product, 'id'>>({
-  name: '',
-  description: '',
-  price: 0,
-  quantity: 0,
-  categoryId: 0
-})
-
-const fetchCategories = async () => {
-  try {
-    categories.value = await categoriesService.getAllCategories()
-  } catch (err) {
-    error.value = 'Произошла ошибка при загрузке категорий'
-    console.error('Error fetching categories:', err)
-  }
-}
-
-const handleImageUpload = (event: Event) => {
-  const input = event.target as HTMLInputElement
-  if (input.files && input.files[0]) {
-    selectedFile.value = input.files[0]
-    imagePreview.value = URL.createObjectURL(input.files[0])
-  }
-}
-
-const handleSubmit = async () => {
-  if (loading.value) return
-
-  try {
-    loading.value = true
-    error.value = ''
-
-    let imageUrl = ''
-    if (selectedFile.value) {
-      imageUrl = await imagesService.uploadImage(selectedFile.value)
-    }
-
-    await productsService.createProduct({
-      ...form.value,
-      imageUrl,
-    })
-    router.push('/products')
-  } catch (err) {
-    error.value = 'Произошла ошибка при создании товара'
-    console.error('Error creating product:', err)
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(() => {
-  fetchCategories()
-})
-</script>
 
 <style scoped>
 .add-product {
@@ -148,6 +227,11 @@ onMounted(() => {
 }
 
 .form-group input,
+
+/* .search-box {
+  flex: 1;
+  min-width: 200px;
+} */
 .form-group textarea,
 .form-group select {
   width: 100%;
@@ -170,6 +254,11 @@ onMounted(() => {
 .form-group select:focus {
   outline: none;
   border-color: #4CAF50;
+}
+
+.search-input {
+  flex: 1;
+  margin-bottom: 10px;
 }
 
 .form-actions {

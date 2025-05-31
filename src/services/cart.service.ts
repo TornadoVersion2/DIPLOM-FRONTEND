@@ -1,20 +1,8 @@
-import axios from 'axios';
+import type { CartItem } from '../types/cart.types'
+import axios from 'axios'
 
-const API_URL = 'http://localhost:3000/api';
+const API_URL = 'http://localhost:3000/api'
 
-export interface CartItem {
-  id: number;
-  productId: number;
-  quantity: number;
-  userId: number;
-  product?: {
-    id: number;
-    description: string;
-    name: string;
-    price: number;
-    imageUrl?: string;
-  };
-}
 
 class CartService {
   async getCartItems(userId: number): Promise<CartItem[]> {

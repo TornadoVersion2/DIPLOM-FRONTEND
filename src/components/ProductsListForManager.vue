@@ -2,12 +2,8 @@
   <div class="products-list">
     <div class="header-actions">
       <h2>Список товаров</h2>
-      <div class="btns">
-        <RouterLink v-if="user?.roles.includes(Role.MANAGER)" to="/products/add" class="add-button">Добавить товар
-        </RouterLink>
-
-        <button @click="ShowFilters" class="filter-button">Показать фильтры</button>
-      </div>
+      <RouterLink v-if="user?.roles.includes(Role.ADMIN)" to="/products/add" class="add-button">Добавить товар
+      </RouterLink>
     </div>
 
     <div class="search-filters">
@@ -15,9 +11,9 @@
         <input type="text" v-model="searchQuery" placeholder="Поиск по названию..." class="search-input" />
       </div>
       <div class="category-filter">
-        <select v-model="selectedCategoryId" class="category-select">
-          <option value="0">Все категории</option>
-          <option v-for="category in categories" :value="category.id">
+        <select v-model="selectedCategory" class="category-select">
+          <option value="">Все категории</option>
+          <option v-for="category in categories" :key="category.id" :value="category.id">
             {{ category.name }}
           </option>
         </select>
@@ -85,31 +81,22 @@ import cartService from '../services/cart.service'
 import { Role } from '../types/auth.types'
 import type { Product } from '../types/product.types'
 import type { Category } from '../types/categories.types'
-import type { Filter } from '../types/filter.types'
-import filterService from '../services/filter.service'
 
 const router = useRouter()
 const products = ref<Product[]>([])
 const categories = ref<Category[]>([])
-const filters = ref<Filter[]>([])
 const loading = ref(true)
-const showFilters = ref(false)
 const error = ref('')
 const currentPage = ref(1)
 const itemsPerPage = 10
 const searchQuery = ref('')
+const selectedCategory = ref('')
 const user = authService.getCurrentUser()
-const selectedCategoryId = ref(0)
-const selectedCategory = ref<Category>()
-// let selectedCategory: Category
 
 const filteredProducts = computed(() => {
   return products.value.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    var matchesCategory = true
-    if (selectedCategory.value) {
-      matchesCategory = !selectedCategory.value.name || product.categoryId === Number(selectedCategory.value.name)
-    }
+    const matchesCategory = !selectedCategory.value || product.categoryId === Number(selectedCategory.value)
     return matchesSearch && matchesCategory
   })
 })
@@ -149,52 +136,31 @@ const displayedPages = computed(() => {
   return pages
 })
 
-// const selectCategory = async (category: Category) => {
-//   console.log("cateory: ", category)
-//   selectedCategory.value = category
-//   console.log("selectedCateory: ", selectedCategory)
-// }
-
-watch([searchQuery, selectedCategoryId], () => {
+watch([searchQuery, selectedCategory], () => {
   currentPage.value = 1
 })
 
-// watch([selectedCategoryIndex], () => {
-//   console.log("SelectedCategoryId has been changed")
-//   selectedCategory = categories.value[selectedCategoryIndex.value]
-//   console.log("SelcetedCategory: ", selectedCategory)
-// })
-
-const fetchProducts = async () => {
+const fetchManagerProducts = async () => {
   try {
     loading.value = true
     error.value = ''
-    products.value = await productsService.getAllProducts()
+    if (user) {
+      products.value = await productsService.getProducByManager(user.id)
+    }
   } catch (err) {
     error.value = 'Произошла ошибка при загрузке товаров'
-    console.error('Error fetching products:', err)
   } finally {
     loading.value = false
   }
 }
 
-const fetchCategories = async () => {
+const fetchManagerCategories = async () => {
   try {
-    categories.value = await categoriesService.getAllCategories()
+    if (user) {
+      categories.value = await categoriesService.getCategoryByManager(user.id)
+    }
   } catch (err) {
     error.value = 'Произошла ошибка при загрузке категорий'
-    console.error('Error fetching categories:', err)
-  }
-}
-
-const fetchFilters = async () => {
-  if (selectedCategoryId.value > 0) {
-    try {
-      filters.value = await filterService.getAllFilters()
-    } catch (err) {
-      error.value = 'Произошла ошибка при загрузке филтров'
-      console.error('Error fetching filters:', err)
-    }
   }
 }
 
@@ -218,24 +184,12 @@ const addToCart = async (productId: number) => {
     alert('Товар добавлен в корзину')
   } catch (err) {
     alert('Произошла ошибка при добавлении товара в корзину')
-    console.error('Error adding to cart:', err)
   }
 }
 
-
-const ShowFilters = () => {
-  showFilters.value = !showFilters.value
-  console.log("SelectedCategoryId: ", selectedCategoryId.value)
-  console.log("SelectedCategory.value: ", selectedCategory.value)
-
-  fetchFilters()
-  console.log("Filters", filters.value)
-
-}
-
 onMounted(() => {
-  fetchProducts()
-  fetchCategories()
+  fetchManagerProducts()
+  fetchManagerCategories()
 })
 
 </script>
@@ -252,22 +206,7 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
-.btns {
-  display: flex;
-  gap: 5px;
-}
-
 .add-button {
-  padding: 8px 16px;
-  background-color: #4CAF50;
-  color: white;
-  text-decoration: none;
-  border-radius: 4px;
-  border: none;
-  cursor: pointer;
-}
-
-.filter-button {
   padding: 8px 16px;
   background-color: #4CAF50;
   color: white;
@@ -403,7 +342,8 @@ onMounted(() => {
   color: #666;
 }
 
-/* .modal-overlay {
+/* Стили для модального окна */
+.modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -443,9 +383,9 @@ onMounted(() => {
   border-radius: 4px;
   cursor: pointer;
   font-weight: 500;
-} */
+}
 
-/* .confirm-delete {
+.confirm-delete {
   background-color: #dc3545;
   color: white;
 }
@@ -461,7 +401,7 @@ onMounted(() => {
 
 .cancel-delete:hover {
   background-color: #5a6268;
-} */
+}
 
 .pagination {
   display: flex;
@@ -544,8 +484,6 @@ onMounted(() => {
   outline: none;
   border-color: #4CAF50;
 }
-
-
 
 .category-filter {
   min-width: 200px;

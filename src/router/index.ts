@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-// import HomeView from '../views/HomeView.vue'
+
 import ProductsList from '../components/ProductsList.vue'
 import AddProduct from '../components/AddProduct.vue'
 import Login from '../components/Login.vue'
@@ -8,6 +8,13 @@ import Profile from '../components/Profile.vue'
 import ProductDetail from '../components/ProductDetail.vue'
 import CategoriesList from '../components/CategoriesList.vue'
 import Cart from '../components/Cart.vue'
+import OrdersList from '../components/OrdersList.vue'
+import ProductListForManager from '../components/ProductsListForManager.vue'
+import OrdersHistory from '../components/OrdersHistory.vue'
+import SellerRegister from '../components/SellerRegister.vue'
+import ManagerApproveList from '../components/ManagerApproveList.vue'
+import addFilters from '../components/addFilters.vue'
+
 import authService from '../services/auth.service'
 
 const router = createRouter({
@@ -59,17 +66,52 @@ const router = createRouter({
       name: 'cart',
       component: Cart,
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/orders',
+      name: 'orders',
+      component: OrdersList,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/ProductsForManager',
+      name: 'manager-products',
+      component: ProductListForManager,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/OrdersHistory',
+      name: 'orders-history',
+      component: OrdersHistory,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/SellerRegister',
+      name: 'seller-register',
+      component: SellerRegister,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/ManagerApprove',
+      name: 'manager-approve',
+      component: ManagerApproveList,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/addFilters',
+      name: 'add-filters',
+      component: addFilters,
+      meta: { requiresAuth: true }
     }
   ],
 })
 
-// Навигационный guard для проверки аутентификации
-router.beforeEach((to, from, next) => {
-  if (to.meta.requiresAuth && !authService.isAuthenticated()) {
-    next('/login')
-  } else {
-    next()
-  }
-})
+// router.beforeEach((to, from, next) => {
+//   if (to.meta.requiresAuth && !authService.isAuthenticated()) {
+//     next('/login')
+//   } else {
+//     next()
+//   }
+// })
 
 export default router

@@ -1,21 +1,53 @@
+<script setup lang="ts">
+import { computed, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { Role } from '../types/auth.types'
+import { useDefaultStore } from '../storages/default.store'
+import { storeToRefs } from 'pinia'
+import authService from '../services/auth.service'
+import type { User } from '../types/auth.types'
+
+const { user } = storeToRefs(useDefaultStore())
+const router = useRouter()
+const isAuthenticated = computed(() => user.value?.id)
+
+const handleLogout = () => {
+  authService.logout()
+  user.value = reactive<User>({} as User)
+  router.push('/login')
+}
+
+onMounted(() => {
+  const currentUser = authService.getCurrentUser()
+  if (currentUser) {
+    user.value = currentUser
+  }
+})
+</script>
 <template>
+  <router-link to="/SellerRegister" v-if="!isAuthenticated" class="nav-for-sellers">Продавцам</router-link>
   <nav class="navbar">
     <div class="nav-brand">
-      <router-link to="/">Магазин</router-link>
+      <router-link to="/products">Главная</router-link>
     </div>
 
     <div class="nav-links">
       <template v-if="isAuthenticated">
-        <router-link to="/products" class="nav-link">Товары</router-link>
-        <router-link v-if="user?.roles?.includes(Role.ADMIN)" to="/categories"
-          class="nav-link">Категории</router-link>
+        <!-- <router-link to="/ProductsForManager" class="nav-link">Товары</router-link> -->
         <router-link v-if="user?.roles?.includes(Role.USER)" to="/cart" class="nav-link cart-link">
           <span class="cart-icon">🛒</span>
           Корзина
         </router-link>
+        <router-link v-if="user?.roles?.includes(Role.MANAGER) || user?.roles?.includes(Role.USER)" to="/orders"
+          class="nav-link">Заказы</router-link>
+        <!-- <router-link v-if="user?.roles?.includes(Role.USER)" to="/orders" class="nav-link">Заказы</router-link>   -->
+        <router-link v-if="user?.roles?.includes(Role.MANAGER)" to="/categories" class="nav-link">Категории</router-link>
+        <router-link v-if="user?.roles?.includes(Role.ADMIN)" to="/addFilters" class="nav-link">Фильтры</router-link>
+        <router-link v-if="user?.roles?.includes(Role.MANAGER)" to="/ProductsForManager"
+          class="nav-link">Товары</router-link>
         <router-link to="/profile" class="nav-link">
           <span v-if="user?.name" class="user-info">
-            Привет, {{ currentUserName }}
+            Привет, {{ user.name }}
           </span>
         </router-link>
         <button @click="handleLogout" class="nav-button logout">
@@ -34,35 +66,29 @@
   </nav>
 </template>
 
-<script setup lang="ts">
-import { computed, reactive } from 'vue'
-import { useRouter } from 'vue-router'
-import authService, { type User } from '../services/auth.service'
-import { Role } from '../services/auth.service'
-import { useDefaultStore } from '../storages/default.store'
-import { storeToRefs } from 'pinia'
 
-const router = useRouter()
-const { user } = storeToRefs(useDefaultStore())
-
-const isAuthenticated = computed(() => user.value?.id)
-const currentUserName = computed(() => user.value?.name || user.value?.email)
-
-const handleLogout = () => {
-  authService.logout()
-  user.value = reactive<User>({} as User)
-  router.push('/login')
-}
-</script>
 
 <style scoped>
 .navbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 2rem;
+  padding: 1rem;
   background-color: #333;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.nav-for-sellers {
+  font-size: 0.75rem;
+  display: flex;
+  justify-content: end;
+  color: white;
+  text-decoration: none;
+  padding: 0.5rem 1rem 0px 0px;
+  border-radius: 4px 4px 0px 0px;
+  transition: background-color 0.2s;
+  background-color: #333;
+  align-items: center;
 }
 
 .nav-brand a {

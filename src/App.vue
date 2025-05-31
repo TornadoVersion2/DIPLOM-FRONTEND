@@ -8,7 +8,7 @@ import Navbar from './components/Navbar.vue'
     <main class="main-content">
       <RouterView />
     </main>
-    </div>
+  </div>
 </template>
 
 <style>
@@ -27,11 +27,11 @@ body {
   margin: 0;
   padding: 0;
   font-family: Arial, sans-serif;
-  }
+}
 
 button {
   cursor: pointer;
-  }
+}
 
 a {
   text-decoration: none;

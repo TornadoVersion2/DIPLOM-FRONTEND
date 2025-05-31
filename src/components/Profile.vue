@@ -2,22 +2,48 @@
   <div class="profile-container">
     <div class="profile-card">
       <h2>Профиль пользователя</h2>
-      
-      <div v-if="user" class="profile-info">
+
+      <div v-if="isAuthenticated" class="profile-info">
         <div class="info-group">
           <label>Email:</label>
-          <span>{{ user.email }}</span>
-        </div>
-        
-        <div class="info-group">
-          <label>Имя:</label>
-          <span>{{ user.name || 'Не указано' }}</span>
+          <span>{{ user?.email }}</span>
         </div>
 
         <div class="info-group">
-          <label>ID пользователя:</label>
-          <span>{{ user.id }}</span>
+          <label>Имя:</label>
+          <span>{{ user?.name || 'Не указано' }}</span>
         </div>
+        <router-link to="/OrdersHistory" v-if="user?.roles?.includes(Role.MANAGER) || user?.roles?.includes(Role.USER)">
+          <div class="info-group">
+            <h2>История заказов</h2>
+            <!-- <span>
+              перейти
+            </span> -->
+          </div>
+        </router-link>
+
+        <router-link to="/ManagerApprove" v-if="user?.roles?.includes(Role.ADMIN)">
+          <div class="info-group">
+            <h2>Менеджеры на подтверждение</h2>
+            <!-- <span>
+              перейти
+            </span> -->
+          </div>
+        </router-link>
+
+        <!-- <router-link to="/OrdersHistory" v-if="user?.roles?.includes(Role.MANAGER) || user?.roles?.includes(Role.USER)">
+          <div class="info-group">
+            <h2>История заказов</h2>
+             <span>
+              перейти
+            </span> 
+          </div>
+        </router-link> -->
+
+        <!-- <div class="info-group">
+          <label>История заказов</label>
+          <span>Перейти</span>
+        </div> -->
       </div>
 
       <div v-else class="error-message">
@@ -32,32 +58,39 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import type { User } from '../types/auth.types'
+import { Role } from '../types/auth.types'
+import authService from '../services/auth.service'
+import { useDefaultStore } from '../storages/default.store'
+import { storeToRefs } from 'pinia'
 
-interface User {
-  id: number
-  email: string
-  name?: string
-}
 
+
+const { user } = storeToRefs(useDefaultStore())
+const isAuthenticated = computed(() => user.value?.id)
 const router = useRouter()
-const user = ref<User | null>(null)
+// const user = ref<User | null>(null)
 
 onMounted(() => {
-  const userStr = localStorage.getItem('user')
-  if (userStr) {
-    try {
-      user.value = JSON.parse(userStr)
-    } catch (e) {
-      console.error('Error parsing user data:', e)
-    }
+  // const userStr = localStorage.getItem('user')
+  var currentUser = authService.getCurrentUser()
+  if (currentUser) {
+    user.value = currentUser
   }
+  // if (userStr) {
+  //   try {
+  //     user.value = JSON.parse(userStr)
+  //   } catch (e) {
+  //     console.error('Error parsing user data:', e)
+  //   }
+  // }
 })
 
 const handleLogout = () => {
-  localStorage.removeItem('token')
-  localStorage.removeItem('user')
+  authService.logout()
+  user.value = reactive<User>({} as User)
   router.push('/login')
 }
 </script>
@@ -129,4 +162,4 @@ const handleLogout = () => {
   margin: 1rem 0;
   text-align: center;
 }
-</style> 
+</style>

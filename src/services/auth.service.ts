@@ -1,55 +1,68 @@
+import type { User, AuthResponse } from '../types/auth.types'
+import { Role } from '../types/auth.types'
 import axios from 'axios'
 
 const API_URL = 'http://localhost:3000/api'
 
-export enum Role {
-  GUEST = 'GUEST',
-  USER = 'USER',
-  MANAGER = 'MANAGER',
-  ADMIN = 'ADMIN',
-  OWNER = 'OWNER'
-}  
-
-export interface User {
-  id: number
-  email: string
-  name?: string
-  roles: Role[]
-}
-
-export interface AuthResponse {
-  access_token: string
-  user: User
-}
 
 class AuthService {
   async login(email: string, password: string): Promise<AuthResponse> {
-    const response = await axios.post(`${API_URL}/auth/login`, {
-      email,
-      password,
-    })
-    
-    if (response.data.access_token) {
-      localStorage.setItem('token', response.data.access_token)
-      localStorage.setItem('user', JSON.stringify(response.data.user))
+    try {
+      const response = await axios.post(`${API_URL}/auth/login`, {
+        email,
+        password,
+      })
+
+      if (response.data.access_token) {
+        localStorage.setItem('token', response.data.access_token)
+        localStorage.setItem('user', JSON.stringify(response.data.user))
+      }
+
+      return response.data
+    } catch (error) {
+      throw error
     }
-    console.log("Login response", response.data)
-    return response.data
   }
 
-  async register(email: string, password: string, name?: string): Promise<AuthResponse> {
-    const response = await axios.post(`${API_URL}/auth/register`, {
-      email,
-      password,
-      name,
-    })
-    
-    if (response.data.access_token) {
-      localStorage.setItem('token', response.data.access_token)
-      localStorage.setItem('user', JSON.stringify(response.data.user))
+  async register(email: string, password: string, name: string): Promise<AuthResponse> {
+    try {
+      const response = await axios.post(`${API_URL}/auth/register`, {
+        email,
+        password,
+        name,
+      })
+
+      if (response.data.access_token) {
+        localStorage.setItem('token', response.data.access_token)
+        localStorage.setItem('user', JSON.stringify(response.data.user))
+      }
+
+      return response.data
+    } catch (error) {
+      console.error('Registration error:', error)
+      throw error
     }
-    
-    return response.data
+  }
+
+
+  async registerManager(email: string, password: string, name: string): Promise<AuthResponse> {
+    try {
+      const response = await axios.post(`${API_URL}/auth/manager/register`, {
+        email,
+        password,
+        name,
+      })
+
+      if (response.data.access_token) {
+        localStorage.setItem('token', response.data.access_token)
+        localStorage.setItem('user', JSON.stringify(response.data.user))
+      }
+
+      return response.data
+    } catch (error) {
+      console.error('Manager Registration error:', error)
+      throw error
+    }
   }
 
   logout(): void {
@@ -61,9 +74,9 @@ class AuthService {
     const userStr = localStorage.getItem('user')
     if (userStr) {
       try {
-        return JSON.parse(userStr)
-      } catch (e) {
-        console.error('Error parsing user data:', e)
+        return JSON.parse(userStr) as User
+      } catch (error) {
+        console.error('Error parsing user data:', error)
         return null
       }
     }
@@ -92,16 +105,16 @@ class AuthService {
       }
     )
 
-    axios.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response?.status === 401) {
-          this.logout()
-          window.location.href = '/login'
-        }
-        return Promise.reject(error)
-      }
-    )
+    // axios.interceptors.response.use(
+    //   (response) => response,
+    //   (error) => {
+    //     if (error.response?.status === 401) {
+    //       this.logout()
+    //       window.location.href = '/login'
+    //     }
+    //     return Promise.reject(error)
+    //   }
+    // )
   }
 }
 

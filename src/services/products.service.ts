@@ -1,16 +1,7 @@
-import axios from 'axios';
+import type { Product } from '../types/product.types'
+import axios from 'axios'
+const API_URL = 'http://localhost:3000/api'
 
-const API_URL = 'http://localhost:3000/api';
-
-export interface Product {
-  id: number;
-  name: string;
-  description: string;
-  price: number;
-  quantity: number;
-  categoryId: number;
-  imageUrl?: string;
-}
 
 class ProductsService {
   async getAllProducts(): Promise<Product[]> {
@@ -20,6 +11,11 @@ class ProductsService {
 
   async getProduct(id: number): Promise<Product> {
     const response = await axios.get(`${API_URL}/products/${id}`);
+    return response.data;
+  }
+
+  async getProducByManager(id: number): Promise<Product[]> {
+    const response = await axios.get(`${API_URL}/products/manager/${id}`);
     return response.data;
   }
 

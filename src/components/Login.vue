@@ -2,31 +2,18 @@
   <div class="login-container">
     <form @submit.prevent="handleLogin" class="login-form">
       <h2>Вход в систему</h2>
-      
       <div v-if="error" class="error-message">
         {{ error }}
       </div>
 
       <div class="form-group">
         <label for="email">Email:</label>
-        <input
-          type="email"
-          id="email"
-          v-model="email"
-          required
-          placeholder="Введите ваш email"
-        />
+        <input type="email" id="email" v-model="email" required placeholder="Введите ваш email" />
       </div>
 
       <div class="form-group">
         <label for="password">Пароль:</label>
-        <input
-          type="password"
-          id="password"
-          v-model="password"
-          required
-          placeholder="Введите пароль"
-        />
+        <input type="password" id="password" v-model="password" required placeholder="Введите пароль" />
       </div>
 
       <button type="submit" :disabled="loading">
@@ -63,12 +50,10 @@ const handleLogin = async () => {
     loading.value = true
     error.value = ''
     const response = await authService.login(email.value, password.value)
-    console.log("Response", response)
     user.value = reactive(response.user)
     router.push('/')
   } catch (err: any) {
-    console.error('Login error:', err)
-    error.value = err.message || 'Ошибка при входе в систему'
+    error.value = 'Неправильный email или пароль'
   } finally {
     loading.value = false
   }
@@ -156,4 +141,4 @@ button:disabled {
 .form-footer a:hover {
   text-decoration: underline;
 }
-</style> 
+</style>

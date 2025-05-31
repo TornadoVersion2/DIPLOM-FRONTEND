@@ -1,78 +1,55 @@
 <template>
   <div class="register-container">
     <form @submit.prevent="handleRegister" class="register-form">
-      <h2>Регистрация</h2>
-      
+      <h2>Регистрация продавца</h2>
+
       <div v-if="successMessage" class="success-message">
         {{ successMessage }}
       </div>
 
-      <div v-if="error" class="error-message" :class="{ 'user-exists': isUserExists }">
+      <!-- <div v-if="error" class="error-message" :class="{ 'user-exists': isUserExists }">
         {{ error }}
         <div v-if="isUserExists" class="error-suggestion">
           <router-link to="/login">Перейти на страницу входа</router-link>
         </div>
-      </div>
+      </div> -->
 
       <div class="form-group">
         <label for="email">Email:</label>
-        <input
-          type="email"
-          id="email"
-          v-model="email"
-          required
-          placeholder="Введите ваш email"
-        />
+        <input type="email" id="email" v-model="email" required placeholder="Введите ваш email" />
       </div>
 
       <div class="form-group">
         <label for="name">Имя:</label>
-        <input
-          type="text"
-          id="name"
-          v-model="name"
-          placeholder="Введите ваше имя"
-        />
+        <input type="text" id="name" v-model="name" placeholder="Введите ваше имя" />
       </div>
 
       <div class="form-group">
         <label for="password">Пароль:</label>
-        <input
-          type="password"
-          id="password"
-          v-model="password"
-          required
-          placeholder="Введите пароль"
-        />
+        <input type="password" id="password" v-model="password" required placeholder="Введите пароль" />
       </div>
 
       <div class="form-group">
         <label for="confirmPassword">Подтвердите пароль:</label>
-        <input
-          type="password"
-          id="confirmPassword"
-          v-model="confirmPassword"
-          required
-          placeholder="Подтвердите пароль"
-        />
+        <input type="password" id="confirmPassword" v-model="confirmPassword" required placeholder="Подтвердите пароль" />
       </div>
 
       <button type="submit" :disabled="loading">
         {{ loading ? 'Загрузка...' : 'Зарегистрироваться' }}
       </button>
 
-      <div class="form-footer">
+      <!-- <div class="form-footer">
         <p>
           Уже есть аккаунт?
           <router-link to="/login">Войти</router-link>
         </p>
-      </div>
+      </div> -->
     </form>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref} from 'vue'
 import { useRouter } from 'vue-router'
 import authService from '../services/auth.service'
 
@@ -85,16 +62,16 @@ const error = ref('')
 const successMessage = ref('')
 const loading = ref(false)
 
-const isUserExists = computed(() => {
-  return error.value === 'Пользователь с таким email уже существует'
-})
+// const isUserExists = computed(() => {
+//   return error.value === 'Пользователь с таким email уже существует'
+// })
 
-const isFormValid = computed(() => {
-  return email.value && 
-         password.value && 
-         confirmPassword.value && 
-         password.value === confirmPassword.value
-})
+// const isFormValid = computed(() => {
+//   return email.value && 
+//          password.value && 
+//          confirmPassword.value && 
+//          password.value === confirmPassword.value
+// })
 
 const handleRegister = async () => {
   if (password.value !== confirmPassword.value) {
@@ -106,8 +83,8 @@ const handleRegister = async () => {
     loading.value = true
     error.value = ''
     successMessage.value = ''
-    
-    const response = await authService.register(
+
+    await authService.registerManager(
       email.value,
       password.value,
       name.value || ''

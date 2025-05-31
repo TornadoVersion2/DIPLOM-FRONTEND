@@ -1,13 +1,8 @@
-import axios from 'axios';
+import type { Category, createCategory } from '../types/categories.types'
+import axios from 'axios'
 
-const API_URL = 'http://localhost:3000/api';
+const API_URL = 'http://localhost:3000/api'
 
-export interface Category {
-  id: number;
-  name: string;
-  description?: string;
-  productsCount?: number;
-}
 
 class CategoriesService {
   async getAllCategories(): Promise<Category[]> {
@@ -16,11 +11,16 @@ class CategoriesService {
   }
 
   async getCategory(id: number): Promise<Category> {
-    const response = await axios.get(`${API_URL}/categories/${id}`);
+    const response = await axios.get(`${API_URL}/categories/category/${id}`);
     return response.data;
   }
 
-  async createCategory(category: Omit<Category, 'id'>): Promise<Category> {
+  async getCategoryByManager(managerId: number): Promise<Category[]> {
+    const response = await axios.get(`${API_URL}/categories/manager/${managerId}`);
+    return response.data;
+  }
+
+  async createCategory(category: createCategory): Promise<Category> {
     const response = await axios.post(`${API_URL}/categories`, category);
     return response.data;
   }

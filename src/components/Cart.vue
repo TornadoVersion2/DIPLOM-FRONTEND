@@ -2,9 +2,14 @@
   <div class="cart">
     <div class="header-actions">
       <h2>Корзина</h2>
-      <button class="checkout-button">Оформить заказ</button>
+      <button v-if="cartItems.length > 0" @click="checkout" class="checkout-button" :disabled="loading">
+        {{ loading ? 'Оформление...' : 'Оформить заказ' }}
+      </button>
     </div>
-    <div v-if="loading">Загрузка...</div>
+    <div v-if="loading" class="loading">
+      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+      <p class="mt-2">Загрузка...</p>
+    </div>
     <div v-else-if="error" class="error">{{ error }}</div>
     <div v-else-if="cartItems.length === 0" class="empty-cart">
       Корзина пуста
@@ -20,11 +25,12 @@
           <div v-if="item.product" class="item-details">
             <h3 class="item-name">{{ item.product.name }}</h3>
             <p class="description">{{ item.product.description }}</p>
+            <p class="quantity">Количество: {{ item.product.quantity }}</p>
             <p class="price">₽{{ item.product.price }}</p>
           </div>
         </div>
         <button @click="removeFromCart(item.id)" class="remove-button">
-          Удалить
+          Убрать из корзины
         </button>
       </div>
     </div>
@@ -34,12 +40,16 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import cartService from '../services/cart.service'
+import orderService from '../services/order.service'
 import authService from '../services/auth.service'
-import type { CartItem } from '../services/cart.service'
+import type { CartItem } from '../types/cart.types'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const cartItems = ref<CartItem[]>([])
 const loading = ref(true)
 const error = ref('')
+
 const fetchCartItems = async () => {
   loading.value = true
   try {
@@ -52,7 +62,7 @@ const fetchCartItems = async () => {
     cartItems.value = await cartService.getCartItems(userId)
   } catch (err) {
     error.value = 'Произошла ошибка при загрузке корзины'
-    console.error('Error fetching car   t:', err)
+    console.error('Error fetching cart:', err)
   } finally {
     loading.value = false
   }
@@ -65,6 +75,49 @@ const removeFromCart = async (itemId: number) => {
   } catch (err) {
     error.value = 'Произошла ошибка при удалении товара'
     console.error('Error removing item from cart:', err)
+  }
+}
+
+const checkout = async () => {
+  try {
+    loading.value = true
+    error.value = ''
+
+    const userId = authService.getCurrentUser()?.id
+    if (!userId) {
+      error.value = 'Пользователь не авторизован'
+      return
+    }
+
+
+
+    // Создаем заказ для каждого товара в корзине
+    for (const item of cartItems.value) {
+      if (item.product && item.product.quantity > 0) {
+        await orderService.createOrder({
+          productId: item.product.id,
+          userId: userId
+        })
+      }
+    }
+
+    // Очищаем корзину
+    for (const item of cartItems.value) {
+      if (item.product && item.product.quantity > 0) {
+        await cartService.removeFromCart(item.id)
+      }
+    }
+
+    // Обновляем список товаров в корзине
+    cartItems.value = []
+
+    // Перенаправляем на страницу заказов
+    // router.push('/orders')
+  } catch (err) {
+    error.value = 'Произошла ошибка при оформлении заказа'
+    console.error('Error during checkout:', err)
+  } finally {
+    loading.value = false
   }
 }
 
@@ -98,6 +151,11 @@ onMounted(() => {
 
 .checkout-button:hover {
   background-color: #45a049;
+}
+
+.checkout-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
 }
 
 .cart-items {
@@ -138,6 +196,19 @@ onMounted(() => {
 }
 
 .description {
+  font-size: 14px;
+  color: #666;
+  max-height: 4.5em;
+  width: 280px;
+  line-height: 1.5;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: left;
+  margin: 0 0 10px 0;
+}
+
+.quantity {
   font-size: 14px;
   color: #666;
   max-height: 4.5em;
@@ -220,5 +291,13 @@ onMounted(() => {
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   color: #666;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 </style>
