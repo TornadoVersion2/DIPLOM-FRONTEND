@@ -36,10 +36,6 @@ const form = ref<Omit<Product, 'id'>>({
   managerId: 0
 })
 
-const addFilterProducts = async (filter: FilterProduct) => {
-
-}
-
 const fetchCategories = async () => {
   try {
     categories.value = await categoriesService.getAllCategories()
@@ -53,6 +49,8 @@ const fetchFilters = async () => {
   if (form.value.categoryId > 0) {
     try {
       filters.value = await filterService.getFilterByCategory(form.value.categoryId)
+      console.log("Filters: ")
+      filters.value.forEach(filter => console.log(filter))
     } catch (err) {
       error.value = 'Произошла ошибка при загрузке фильтров'
       console.error('Error fetching filters:', err)
@@ -110,9 +108,10 @@ const filtrateFilters = () => {
 }
 
 
-watch([selectedCategoryId], () => {
+watch([selectedCategoryId], async () => {
   form.value.categoryId = selectedCategoryId.value
-  fetchFilters()
+  console.log("selectedCategoryId: ", selectedCategoryId.value)
+  await fetchFilters()
 })
 
 onMounted(() => {

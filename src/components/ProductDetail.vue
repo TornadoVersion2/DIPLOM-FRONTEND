@@ -179,8 +179,9 @@ const fetchProduct = async () => {
   try {
     loading.value = true
     error.value = ''
-    const response = await axios.get(`http://localhost:3000/api/products/${route.params.id}`)
-    product.value = response.data
+    // const response = await axios.get(`http://localhost:3000/api/products/${route.params.id}`)
+    product.value = await productsService.getProduct(+route.params.id)
+    console.log("Product.value: ", product.value)
   } catch (err) {
     if (axios.isAxiosError(err)) {
       if (err.response) {

@@ -24,6 +24,8 @@ onMounted(() => {
   }
 })
 </script>
+
+
 <template>
   <router-link to="/SellerRegister" v-if="!isAuthenticated" class="nav-for-sellers">Продавцам</router-link>
   <nav class="navbar">

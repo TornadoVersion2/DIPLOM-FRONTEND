@@ -165,7 +165,7 @@ const fetchManagerCategories = async () => {
 }
 
 const goToProduct = (productId: number) => {
-  router.push(`/products/${productId}`)
+  router.push(`/products/product/${productId}`)
 }
 
 const getCategoryName = (categoryId: number) => {

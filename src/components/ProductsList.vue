@@ -6,7 +6,7 @@
         <RouterLink v-if="user?.roles.includes(Role.MANAGER)" to="/products/add" class="add-button">Добавить товар
         </RouterLink>
 
-        <button @click="ShowFilters" class="filter-button">Показать фильтры</button>
+        <button v-if="selectedCategory" @click="ShowFilters" class="filter-button">Показать фильтры</button>
       </div>
     </div>
 
@@ -24,14 +24,26 @@
       </div>
     </div>
 
+    <div v-if="showFilters" class="filters-container">
+      <div v-for="(filterGroup, filterName) in groupedFilters" :key="filterName" class="filter-group">
+        <h3>{{ filterName }}</h3>
+        <select v-model="selectedFilterValues[filterName]" class="filter-select" @change="applyFilters">
+          <option value="">Все</option>
+          <option v-for="filter in filterGroup" :key="filter.id" :value="filter.possibleValue">
+            {{ filter.possibleValue }}
+          </option>
+        </select>
+      </div>
+    </div>
+
     <div v-if="loading">Загрузка...</div>
     <div v-else-if="error" class="error">{{ error }}</div>
-    <div v-else-if="filteredProducts.length === 0" class="no-products">
+    <div v-else-if="products.length === 0" class="no-products">
       {{ searchQuery || selectedCategory ? 'Товары не найдены' : 'Товары отсутствуют' }}
     </div>
     <div v-else>
       <div class="products-grid">
-        <div v-for="product in paginatedProducts" :key="product.id" class="product-card" @click="goToProduct(product.id)">
+        <div v-for="product in products" :key="product.id" class="product-card" @click="goToProduct(product.id)">
           <div class="product-image">
             <img :src="product.imageUrl ? `http://localhost:3000/api/images/${product.imageUrl}` : '/placeholder.png'"
               :alt="product.name" class="product-img" />
@@ -82,11 +94,11 @@ import authService from '../services/auth.service'
 import productsService from '../services/products.service'
 import categoriesService from '../services/categories.service'
 import cartService from '../services/cart.service'
+import filterService from '../services/filter.service'
 import { Role } from '../types/auth.types'
 import type { Product } from '../types/product.types'
 import type { Category } from '../types/categories.types'
 import type { Filter } from '../types/filter.types'
-import filterService from '../services/filter.service'
 
 const router = useRouter()
 const products = ref<Product[]>([])
@@ -101,29 +113,7 @@ const searchQuery = ref('')
 const user = authService.getCurrentUser()
 const selectedCategoryId = ref(0)
 const selectedCategory = ref<Category>()
-// let selectedCategory: Category
-
-const filteredProducts = computed(() => {
-  return products.value.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    var matchesCategory = true
-    if (selectedCategory.value) {
-      matchesCategory = !selectedCategory.value.name || product.categoryId === Number(selectedCategory.value.name)
-    }
-    return matchesSearch && matchesCategory
-  })
-})
-
-const paginatedProducts = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage
-  const end = start + itemsPerPage
-  return filteredProducts.value.slice(start, end)
-})
-
-const totalPages = computed(() => {
-  return Math.ceil(filteredProducts.value.length / itemsPerPage)
-})
-
+const totalPages = ref(0)
 const displayedPages = computed(() => {
   const pages = []
   const maxVisiblePages = 5
@@ -149,27 +139,48 @@ const displayedPages = computed(() => {
   return pages
 })
 
-// const selectCategory = async (category: Category) => {
-//   console.log("cateory: ", category)
-//   selectedCategory.value = category
-//   console.log("selectedCateory: ", selectedCategory)
-// }
+const groupedFilters = computed(() => {
+  const groups: { [key: string]: Filter[] } = {};
+  filters.value.forEach(filter => {
+    if (!groups[filter.name]) {
+      groups[filter.name] = [];
+    }
+    groups[filter.name].push(filter);
+  });
+  return groups;
+});
 
-watch([searchQuery, selectedCategoryId], () => {
-  currentPage.value = 1
-})
 
-// watch([selectedCategoryIndex], () => {
-//   console.log("SelectedCategoryId has been changed")
-//   selectedCategory = categories.value[selectedCategoryIndex.value]
-//   console.log("SelcetedCategory: ", selectedCategory)
-// })
+const applyFilters = async () => {
+  try {
+    loading.value = true;
+    error.value = '';
+    const response = await productsService.search(
+      searchQuery.value,
+      currentPage.value,
+      itemsPerPage,
+      selectedCategoryId.value,
+      selectedFilterValues.value
+    );
+    products.value = response.products;
+    totalPages.value = Math.ceil(response.totalProducts / itemsPerPage);
+  } catch (err) {
+    error.value = 'Произошла ошибка при применении фильтров';
+    console.error('Error applying filters:', err);
+  } finally {
+    loading.value = false;
+  }
+};
+
+// Добавьте ref для хранения выбранных значений фильтров
+const selectedFilterValues = ref<Filter[]>([]);
 
 const fetchProducts = async () => {
   try {
     loading.value = true
     error.value = ''
-    products.value = await productsService.getAllProducts()
+    totalPages.value = await productsService.getTotalPages()
+    products.value = await productsService.getPaginatedProducts(currentPage.value)
   } catch (err) {
     error.value = 'Произошла ошибка при загрузке товаров'
     console.error('Error fetching products:', err)
@@ -188,11 +199,11 @@ const fetchCategories = async () => {
 }
 
 const fetchFilters = async () => {
-  if (selectedCategoryId.value > 0) {
+  if (selectedCategory.value) {
     try {
-      filters.value = await filterService.getAllFilters()
+      filters.value = await filterService.getFilterByCategory(selectedCategory.value.id)
     } catch (err) {
-      error.value = 'Произошла ошибка при загрузке филтров'
+      error.value = 'Произошла ошибка при загрузке фильтров'
       console.error('Error fetching filters:', err)
     }
   }
@@ -225,22 +236,91 @@ const addToCart = async (productId: number) => {
 
 const ShowFilters = () => {
   showFilters.value = !showFilters.value
-  console.log("SelectedCategoryId: ", selectedCategoryId.value)
-  console.log("SelectedCategory.value: ", selectedCategory.value)
-
-  fetchFilters()
-  console.log("Filters", filters.value)
-
+  if (!showFilters.value) {
+    selectedFilterValues.value = []; // Сброс фильтров при закрытии
+    applyFilters(); // Применяем фильтры (получаем все товары)
+  }
+  // filters.value.forEach((filter) => console.log("filter: ", filter.name, "filter.id: ", filter.id))
 }
+
+watch([searchQuery, selectedCategoryId], () => {
+  currentPage.value = 1
+})
+
+watch(selectedCategoryId, async () => {
+  selectedCategory.value = await categoriesService.getCategory(selectedCategoryId.value)
+  selectedFilterValues.value = []; // Сброс выбранных фильтров
+  console.log("selectedCategoryId: ", selectedCategoryId.value)
+  console.log("SelectedCategory: ", selectedCategory.value)
+  await fetchFilters()
+
+  // console.log("Filters: ", filters.value.forEach.cons)
+  filters.value.forEach(filter => console.log(filter))
+})
+
+watch([searchQuery, currentPage, selectedCategoryId], async () => {
+  try {
+    loading.value = true
+    error.value = ''
+    const response = await productsService.search(searchQuery.value, currentPage.value, itemsPerPage, selectedCategoryId.value)
+    // console.log("resp: ", response)
+    products.value = response.products
+    // console.log("products: ", products.value)
+    totalPages.value = Math.ceil(response.totalProducts / itemsPerPage)
+    // products.value = productsService.getPaginatedProducts(currentPage.value)
+  } catch (err) {
+    error.value = 'Произошла ошибка при загрузке товаров'
+    console.error('Error fetching products:', err)
+  } finally {
+    loading.value = false
+  }
+})
 
 onMounted(() => {
   fetchProducts()
   fetchCategories()
 })
-
 </script>
 
 <style scoped>
+.filters-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.filter-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.filter-group h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: #333;
+}
+
+.filter-select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  background-color: white;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #4CAF50;
+}
+
 .products-list {
   padding: 20px;
 }
