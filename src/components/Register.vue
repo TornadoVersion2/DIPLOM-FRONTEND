@@ -118,7 +118,7 @@ const handleRegister = async () => {
       router.push('/')
     }, 2000)
   } catch (err: any) {
-    console.error('Registration error:', err)
+    console.error('Registration error: ', err)
     error.value = err.message || 'Произошла ошибка при регистрации'
   } finally {
     loading.value = false

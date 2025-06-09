@@ -94,7 +94,7 @@ const fetchCategories = async () => {
   try {
     loading.value = true
     error.value = ''
-    // categories.value = await categoriesService.getAllCategories()
+    // categories.value = await categoriesService.getAll()
     categories.value = await categoriesService.getCategoryByManager(user.value.id)
   } catch (err) {
     error.value = 'Произошла ошибка при загрузке категорий'

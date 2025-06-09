@@ -1,102 +1,36 @@
 import axios from 'axios'
-import type { CreateFilterDto, Filter, FilterProduct, CreateFilterProductDto } from '../types/filter.types'
+import type { CreateFilterDto, Filter } from '../types/filter.types'
 
 const API_URL = 'http://localhost:3000/api/filter'
 
 class FilterService {
-    async getAllFilters(): Promise<Filter[]> {
-        const response = await axios.get(API_URL)
+    async create(filter: CreateFilterDto): Promise<Filter> {
+        const response = await axios.post(API_URL, filter)
         return response.data
     }
 
-    async getFilterById(id: number): Promise<Filter> {
-        const response = await axios.get(`${API_URL}/${id}`)
-        return response.data
+    async getAll(): Promise<Filter[]> {
+        return (await axios.get(API_URL)).data
     }
 
-    async getFilterByCategory(categoryId: number): Promise<Filter[]> {
-        const response = await axios.get(`${API_URL}/category/${categoryId}`)
-        return response.data
+    async getById(id: number): Promise<Filter> {
+        return (await axios.get(`${API_URL}/${id}`)).data
     }
 
-    async createFilter(Filter: CreateFilterDto): Promise<Filter> {
-        let response
-        try {
-            response = await axios.post(API_URL, Filter)
-        }
-        catch {
-            throw Error("Ошибка при создании фильтра")
-            // console.log("Ошибка при создании фильтра")
-        }
-        if (response)
-            return response.data
-        else {
-            throw Error("Ошибка при создании фильтра")
-            // console.log("Ошибка при создании фильтра")
-        }
+    async getByCategory(categoryId: number): Promise<Filter[]> {
+        return (await axios.get(`${API_URL}/category/${categoryId}`)).data
     }
 
-    async updateFilter(id: number, Filter: Filter): Promise<Filter> {
-        const response = await axios.patch(`${API_URL}/${id}`, Filter)
-        return response.data
+    async update(filter: Filter): Promise<Filter> {
+        return (await axios.patch(`${API_URL}/${filter.id}`, filter)).data
     }
 
-    async deleteFilter(id: number): Promise<void> {
+    async delete(id: number): Promise<void> {
         await axios.delete(`${API_URL}/${id}`)
     }
 
-    async getFiltersByManager(managerId: number): Promise<Filter[]> {
-        const response = await axios.get(`${API_URL}/manager/${managerId}`)
-        return response.data
-    }
-
-
-
-    async getAllFilterProductss(): Promise<Filter[]> {
-        const response = await axios.get(API_URL + `/product`)
-        return response.data
-    }
-
-    async getFilterProductsById(id: number): Promise<Filter> {
-        const response = await axios.get(`${API_URL}/product/${id}`)
-        return response.data
-    }
-
-    async getFilterProductsByCategory(categoryId: number): Promise<Filter[]> {
-        const response = await axios.get(`${API_URL}/product/category/${categoryId}`)
-        return response.data
-    }
-
-    async createFilterProducts(Filter: CreateFilterProductDto): Promise<Filter> {
-        let response
-        console.log("Filter: ", Filter)
-        try {
-            response = await axios.post(API_URL + `/product`, Filter)
-        }
-        catch {
-            throw Error("Ошибка при создании фильтра")
-            // console.log("Ошибка при создании фильтра")
-        }
-        if (response)
-            return response.data
-        else {
-            throw Error("Ошибка при создании фильтра")
-            // console.log("Ошибка при создании фильтра")
-        }
-    }
-
-    async updateFilterProducts(id: number, Filter: Filter): Promise<Filter> {
-        const response = await axios.patch(`${API_URL}/product/${id}`, Filter)
-        return response.data
-    }
-
-    async deleteFilterProducts(id: number): Promise<void> {
-        await axios.delete(`${API_URL}/product/${id}`)
-    }
-
-    async getFiltersByManagerProducts(managerId: number): Promise<Filter[]> {
-        const response = await axios.get(`${API_URL}/product/manager/${managerId}`)
-        return response.data
+    async getByManager(managerId: number): Promise<Filter[]> {
+        return (await axios.get(`${API_URL}/manager/${managerId}`)).data
     }
 }
 

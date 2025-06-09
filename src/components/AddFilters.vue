@@ -1,3 +1,97 @@
+<script setup lang="ts">
+import { ref, onMounted, watch } from 'vue'
+import { useDefaultStore } from '../storages/default.store'
+import { storeToRefs } from 'pinia'
+import authService from '@/services/auth.service'
+import categoriesService from '../services/categories.service'
+import filterService from '@/services/filter.service'
+import type { Category } from '../types/categories.types'
+import type { CreateFilterDto, CreateFilterDescriptionDto } from '@/types/filter.types'
+import filterDescriptionService from '@/services/filter-description.service'
+
+const categories = ref<Category[]>([])
+const loading = ref(true)
+const error = ref('')
+const { user } = storeToRefs(useDefaultStore())
+const selectedCategoryId = ref(0)
+const selectedCategory = ref<Category>({
+  id: 0,
+  name: '',
+  description: '',
+  quantity: 0,
+  managerId: 0,
+})
+const isRangedFilter = ref('false')
+const filterDescription = ref<CreateFilterDescriptionDto>({
+  name: '',
+  description: '',
+  categoryId: 0,
+  measureName: ''
+})
+const filter = ref<CreateFilterDto>({
+  descriptionId: 0,
+  possibleValue: ''
+})
+
+const fetchCategories = async () => {
+  try {
+    loading.value = true
+    error.value = ''
+    categories.value = await categoriesService.getAll()
+  } catch (err) {
+    error.value = 'Произошла ошибка при загрузке категорий'
+    console.error('Error fetching categories:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleSubmit = async () => {
+  if (loading.value) return
+  if (selectedCategoryId.value === 0) return
+  try {
+    error.value = ''
+    const description = await filterDescriptionService.create(filterDescription.value)
+    console.log("Description: ", description)
+    filter.value.descriptionId = description.id
+    console.log("createFilterDto", filter.value)
+    await filterService.create(filter.value)
+  } catch (err: any) {
+    error.value = err.response?.data?.message || err.message
+    console.error('Ошибка при создании фильтра', err.response?.data?.message || err.message)
+  }
+  loading.value = false
+}
+
+watch(selectedCategoryId, () => {
+  filterDescription.value.categoryId = selectedCategoryId.value
+  categories.value.forEach((category) => {
+    if (category.id === selectedCategoryId.value) {
+      selectedCategory.value = category
+    }
+  })
+})
+
+watch(isRangedFilter, () => {
+  if (isRangedFilter) {
+    filter.value.possibleValue = ''
+  }
+  else {
+    filterDescription.value.measureName = ''
+  }
+  // filter.value.isRanged = isRangedFilter.value === "true" ? true : false
+})
+
+
+onMounted(() => {
+  fetchCategories()
+  const currentUser = authService.getCurrentUser()
+  if (currentUser) {
+    user.value = currentUser
+  }
+})
+</script>
+
 <template>
   <div class="containter">
     <div class="search-filters">
@@ -19,12 +113,13 @@
     <form v-else @submit.prevent="handleSubmit" class="product-form">
       <div class="form-group">
         <label for="name">Название:</label>
-        <input type="text" id="name" v-model="form.name" required placeholder="Введите название фильтра" />
+        <input type="text" id="name" v-model="filterDescription.name" required placeholder="Введите название фильтра" />
       </div>
 
       <div class="form-group">
         <label for="description">Описание:</label>
-        <textarea id="description" v-model="form.description" placeholder="Введите описание фильтра"></textarea>
+        <textarea id="description" v-model="filterDescription.description"
+          placeholder="Введите описание фильтра"></textarea>
       </div>
 
       <div>Выбрано: {{ isRangedFilter === "true" ? 'Ранжированный фильтр' : 'Обычный фильтр' }}</div>
@@ -41,17 +136,17 @@
 
       <div v-if="isRangedFilter === 'false'" class="form-group">
         <label for="name">Значение фильтра:</label>
-        <input type="text" id="name" v-model="form.possibleValue" required
+        <input type="text" id="name" v-model="filter.possibleValue" required
           placeholder="Введите возможное значение фильтра" />
 
       </div>
       <div v-else-if="isRangedFilter === 'true'" class="form-group">
-        <label>Минималное значение:</label>
-        <input type="number" min="0" step="0.01" id="min-value" v-model="form.minValue" required
-          placeholder="Введите минимальное значение филтра" />
-        <label>Максимальное значение:</label>
-        <input type="number" min="0" step="0.01" id="max-value" v-model="form.maxValue" required
-          placeholder="Введите название максимальное значение фильтра" />
+        <!-- <label>Минималное значение:</label>
+        <input type="number" min="0" step="0.01" v-model="filter.value" required
+          placeholder="Введите минимальное значение филтра" /> -->
+        <label>Единицы измерения для фильтра:</label>
+        <input type="text" v-model="filterDescription.measureName" required
+          placeholder="Введите единицы измерения для фильтра" />
       </div>
       <div class="form-actions">
         <button type="submit" :disabled="loading" class="submit-button">
@@ -64,102 +159,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import { useDefaultStore } from '../storages/default.store'
-import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
-import authService from '@/services/auth.service'
-import categoriesService from '../services/categories.service'
-import filterService from '@/services/filter.service'
-import type { Category } from '../types/categories.types'
-import type { Filter } from '@/types/filter.types'
 
-const categories = ref<Category[]>([])
-const loading = ref(true)
-const error = ref('')
-const { user } = storeToRefs(useDefaultStore())
-const selectedCategoryId = ref(0)
-const selectedCategory = ref<Category>({
-  id: 0,
-  name: '',
-  description: '',
-  quantity: 0,
-  managerId: 0,
-
-
-})
-const isRangedFilter = ref('false')
-const form = ref<Omit<Filter, 'id' | 'categoryId'>>({
-  name: '',
-  description: '',
-  possibleValue: '',
-  isRanged: false,
-  maxValue: 0,
-  minValue: 0,
-
-})
-
-const fetchCategories = async () => {
-  try {
-    loading.value = true
-    error.value = ''
-    // categories.value = await categoriesService.getAllCategories()
-    categories.value = await categoriesService.getCategoryByManager(user.value.id)
-  } catch (err) {
-    error.value = 'Произошла ошибка при загрузке категорий'
-    console.error('Error fetching categories:', err)
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleSubmit = async () => {
-  if (loading.value) return
-  if (selectedCategoryId.value === 0) return
-
-  const categoryId = selectedCategoryId.value
-  try {
-    loading.value = true
-    error.value = ''
-    await filterService.createFilter({ ...form.value, categoryId })
-  } catch (err) {
-    error.value = 'Произошла ошибка при создании фильтра'
-    console.error('Error creating filter:', err)
-  } finally {
-    loading.value = false
-  }
-}
-
-
-watch([selectedCategoryId], () => {
-  categories.value.forEach((category) => {
-    if (category.id === selectedCategoryId.value) {
-      selectedCategory.value = category
-    }
-  })
-})
-
-watch([isRangedFilter], () => {
-  if (isRangedFilter) {
-    form.value.possibleValue = ''
-  }
-  else {
-    form.value.minValue = 0
-    form.value.maxValue = 0
-  }
-  form.value.isRanged = isRangedFilter.value === "true" ? true : false
-})
-
-
-onMounted(() => {
-  fetchCategories()
-  const currentUser = authService.getCurrentUser()
-  if (currentUser) {
-    user.value = currentUser
-  }
-})
-</script>
 
 <style scoped>
 .containter {

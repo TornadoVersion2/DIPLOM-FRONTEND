@@ -1,6 +1,6 @@
 import type { Product } from '../types/product.types'
 import axios from 'axios'
-import type { Filter } from '../types/filter.types'
+// import type { Filter } from '../types/filter.types'
 const API_URL = 'http://localhost:3000/api'
 
 
@@ -10,10 +10,16 @@ class ProductsService {
     return response.data;
   }
 
-  async search(searchQuery: string, currentPage: number = 1, itemsPerPage = 10, selectedCategoryId?: number, filters?: Filter[]): Promise<{ products: Product[], totalProducts: number }> {
+  async search(searchQuery: string, currentPage: number = 1, itemsPerPage = 10, selectedCategoryId?: number, filtersId?: number[]): Promise<{ products: Product[], totalProducts: number }> {
     // console.log("searchQuery: ", searchQuery)
     // console.log("selectedCategoryId: ", selectedCategoryId)
-    const response = await axios.get(`${API_URL}/products/search/?searchQuery=${searchQuery}&currentPage=${currentPage}&itemsPerPage=${itemsPerPage}&selectedCategoryId=${selectedCategoryId}&filters=${filters}`);
+    const response = await axios.post(`${API_URL}/products/search/`, {
+      searchQuery,
+      currentPage,
+      itemsPerPage,
+      selectedCategoryId,
+      filters: filtersId
+    });
     // console.log("resoncedat a: ", response.data)
     // console.log("Responce.products: ", response.data.products)
     // console.log("Responce.productsCounts: ", response.data.totalProducts)

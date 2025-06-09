@@ -1,25 +1,20 @@
-export interface Filter {
-    id: number;
+export interface CreateFilterDescriptionDto {
     name: string;
-    description: string;
-    possibleValue: string;
+    description?: string;
     categoryId: number;
-    isRanged: Boolean;
-    maxValue: number;
-    minValue: number;
+    measureName?: string
+}
+
+export interface FilterDescription extends CreateFilterDescriptionDto {
+    id: number;
 }
 
 export interface CreateFilterDto {
-    name: string;
-    description?: string;
-    possibleValue: string
-    categoryId: number;
-    isRanged: Boolean;
-    maxValue?: number;
-    minValue?: number;
+    descriptionId: number;
+    possibleValue?: string,
 }
 
-export interface FilterProduct extends CreateFilterProductDto {
+export interface Filter extends CreateFilterDto {
     id: number
 }
 
@@ -28,3 +23,7 @@ export interface CreateFilterProductDto {
     productId: number;
     value?: number;
 }
+
+export interface FilterProduct extends CreateFilterProductDto {
+    id: number
+} 

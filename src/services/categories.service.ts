@@ -5,7 +5,7 @@ const API_URL = 'http://localhost:3000/api'
 
 
 class CategoriesService {
-  async getAllCategories(): Promise<Category[]> {
+  async getAll(): Promise<Category[]> {
     const response = await axios.get(`${API_URL}/categories`);
     return response.data;
   }

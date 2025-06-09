@@ -25,14 +25,36 @@
     </div>
 
     <div v-if="showFilters" class="filters-container">
-      <div v-for="(filterGroup, filterName) in groupedFilters" :key="filterName" class="filter-group">
-        <h3>{{ filterName }}</h3>
-        <select v-model="selectedFilterValues[filterName]" class="filter-select" @change="applyFilters">
+      <div v-for="desc in filterDescriptions" :key="desc.id" class="filter-group">
+        <h3>{{ desc.name }}</h3>
+        <!-- <div v-if="selectedCategoryId > 0" v-for="desc in filterDescriptions" class="form-group"> -->
+        <select v-if="!desc.measureName" class="filter-select form-select"
+          @change="(e: any) => handleUnrangedFilter(desc.id, e.currentTarget.value)">
+          <option selected>{{ desc.name }}</option>
+          <div v-for="filter in filters">
+            <option :value="filter.id" v-if="filter.descriptionId === desc.id">
+              {{ desc.name }} {{ filter.possibleValue }}
+            </option>
+          </div>
+        </select>
+        <div v-else>
+          <div v-for="filter in filters" :key="filter.id">
+            <div class="input-group" v-if="filter.descriptionId === desc.id">
+              <!-- <span class="input-group-text">{{ desc.name }}</span> -->
+              <input id="" type="number" min="0" step="0.01" class="input-group-text"
+                @change="(e: any) => handleRangedFilter(desc.id, filter.id)" required
+                placeholder="Введите значение фильтра" />
+              <span class="input-group-text-measure">{{ desc.measureName }}</span>
+            </div>
+          </div>
+        </div>
+        <!-- </div> -->
+        <!-- <select v-model="selectedFilterValues[filterName]" class="filter-select" @change="applyFilters">
           <option value="">Все</option>
           <option v-for="filter in filterGroup" :key="filter.id" :value="filter.possibleValue">
             {{ filter.possibleValue }}
           </option>
-        </select>
+        </select> -->
       </div>
     </div>
 
@@ -88,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import authService from '../services/auth.service'
 import productsService from '../services/products.service'
@@ -98,12 +120,15 @@ import filterService from '../services/filter.service'
 import { Role } from '../types/auth.types'
 import type { Product } from '../types/product.types'
 import type { Category } from '../types/categories.types'
-import type { Filter } from '../types/filter.types'
+import type { Filter, FilterDescription } from '../types/filter.types'
+import filterDescriptionService from '@/services/filter-description.service'
 
 const router = useRouter()
 const products = ref<Product[]>([])
 const categories = ref<Category[]>([])
 const filters = ref<Filter[]>([])
+const desiredFilters = ref(new Map<number, number>())
+const selectedFilterValues = ref<number[]>([]);
 const loading = ref(true)
 const showFilters = ref(false)
 const error = ref('')
@@ -139,41 +164,48 @@ const displayedPages = computed(() => {
   return pages
 })
 
-const groupedFilters = computed(() => {
-  const groups: { [key: string]: Filter[] } = {};
-  filters.value.forEach(filter => {
-    if (!groups[filter.name]) {
-      groups[filter.name] = [];
-    }
-    groups[filter.name].push(filter);
-  });
-  return groups;
+// const filtersArray = computed(() => Array.from(desiredFilters.value.values()))
+const filtersArray = computed(() => {
+  // const values = Array.from(desiredFilters.value.values());
+  return (Array.from(desiredFilters.value.values())).filter(value => !isNaN(value));
 });
 
+const filterDescriptions = ref<FilterDescription[]>([])
 
-const applyFilters = async () => {
-  try {
-    loading.value = true;
-    error.value = '';
-    const response = await productsService.search(
-      searchQuery.value,
-      currentPage.value,
-      itemsPerPage,
-      selectedCategoryId.value,
-      selectedFilterValues.value
-    );
-    products.value = response.products;
-    totalPages.value = Math.ceil(response.totalProducts / itemsPerPage);
-  } catch (err) {
-    error.value = 'Произошла ошибка при применении фильтров';
-    console.error('Error applying filters:', err);
-  } finally {
-    loading.value = false;
-  }
-};
+// const groupedFilters = computed(() => {
+//   const groups: { [key: string]: Filter[] } = {};
+//   filters.value.forEach(filter => {
+//     if (!groups[filter.name]) {
+//       groups[filter.name] = [];
+//     }
+//     groups[filter.name].push(filter);
+//   });
+//   return groups;
+// });
+
+
+// const applyFilters = async () => {
+//   try {
+//     loading.value = true;
+//     error.value = '';
+//     const response = await productsService.search(
+//       searchQuery.value,
+//       currentPage.value,
+//       itemsPerPage,
+//       selectedCategoryId.value,
+//       selectedFilterValues.value
+//     );
+//     products.value = response.products;
+//     totalPages.value = Math.ceil(response.totalProducts / itemsPerPage);
+//   } catch (err) {
+//     error.value = 'Произошла ошибка при применении фильтров';
+//     console.error('Error applying filters:', err);
+//   } finally {
+//     loading.value = false;
+//   }
+// };
 
 // Добавьте ref для хранения выбранных значений фильтров
-const selectedFilterValues = ref<Filter[]>([]);
 
 const fetchProducts = async () => {
   try {
@@ -191,7 +223,7 @@ const fetchProducts = async () => {
 
 const fetchCategories = async () => {
   try {
-    categories.value = await categoriesService.getAllCategories()
+    categories.value = await categoriesService.getAll()
   } catch (err) {
     error.value = 'Произошла ошибка при загрузке категорий'
     console.error('Error fetching categories:', err)
@@ -201,7 +233,8 @@ const fetchCategories = async () => {
 const fetchFilters = async () => {
   if (selectedCategory.value) {
     try {
-      filters.value = await filterService.getFilterByCategory(selectedCategory.value.id)
+      filters.value = await filterService.getByCategory(selectedCategory.value.id)
+      filterDescriptions.value = await filterDescriptionService.getByCategory(selectedCategoryId.value)
     } catch (err) {
       error.value = 'Произошла ошибка при загрузке фильтров'
       console.error('Error fetching filters:', err)
@@ -210,7 +243,7 @@ const fetchFilters = async () => {
 }
 
 const goToProduct = (productId: number) => {
-  router.push(`/products/${productId}`)
+  router.push(`/products/product/${productId}`)
 }
 
 const getCategoryName = (categoryId: number) => {
@@ -233,12 +266,30 @@ const addToCart = async (productId: number) => {
   }
 }
 
+const handleUnrangedFilter = async (id: number, filterId: number) => {
+  // console.log("Params", id, filterId)
+  if (filterId) {
+    desiredFilters.value.set(id, Number(filterId))
+  }
+  else {
+    desiredFilters.value.delete(id)
+  }
+  // console.log("desiredUnranedFilter: ", desiredFilters.value)
+}
+
+const handleRangedFilter = async (descId: number, filterId: number, value?: number) => {
+  // console.log("Params", descId, filterId)
+  // console.log("handleRanged")
+  desiredFilters.value.set(descId, Number(filterId))
+  // console.log("desiredRanedFilter: ", desiredFilters.value)
+
+}
 
 const ShowFilters = () => {
   showFilters.value = !showFilters.value
   if (!showFilters.value) {
     selectedFilterValues.value = []; // Сброс фильтров при закрытии
-    applyFilters(); // Применяем фильтры (получаем все товары)
+    // applyFilters(); // Применяем фильтры (получаем все товары)
   }
   // filters.value.forEach((filter) => console.log("filter: ", filter.name, "filter.id: ", filter.id))
 }
@@ -258,15 +309,36 @@ watch(selectedCategoryId, async () => {
   filters.value.forEach(filter => console.log(filter))
 })
 
-watch([searchQuery, currentPage, selectedCategoryId], async () => {
+watch([searchQuery, currentPage, selectedCategoryId, filtersArray], async () => {
+  console.log("Size: ", desiredFilters.value.size)
+  console.log("desiredFilters: ", filtersArray.value)
   try {
     loading.value = true
     error.value = ''
-    const response = await productsService.search(searchQuery.value, currentPage.value, itemsPerPage, selectedCategoryId.value)
-    // console.log("resp: ", response)
-    products.value = response.products
-    // console.log("products: ", products.value)
-    totalPages.value = Math.ceil(response.totalProducts / itemsPerPage)
+    if (filtersArray.value.length > 0) {
+      const response = await productsService.search(
+        searchQuery.value,
+        currentPage.value,
+        itemsPerPage,
+        selectedCategoryId.value,
+        filtersArray.value)
+      // console.log("resp: ", response)
+      products.value = response.products
+      // console.log("products: ", products.value)
+      totalPages.value = Math.ceil(response.totalProducts / itemsPerPage)
+    }
+    else {
+      const response = await productsService.search(
+        searchQuery.value,
+        currentPage.value,
+        itemsPerPage,
+        selectedCategoryId.value,)
+      // console.log("resp: ", response)
+      products.value = response.products
+      // console.log("products: ", products.value)
+      totalPages.value = Math.ceil(response.totalProducts / itemsPerPage)
+
+    }
     // products.value = productsService.getPaginatedProducts(currentPage.value)
   } catch (err) {
     error.value = 'Произошла ошибка при загрузке товаров'
@@ -274,6 +346,10 @@ watch([searchQuery, currentPage, selectedCategoryId], async () => {
   } finally {
     loading.value = false
   }
+})
+
+watch(desiredFilters, async () => {
+
 })
 
 onMounted(() => {
@@ -303,6 +379,34 @@ onMounted(() => {
   margin: 0 0 0.5rem 0;
   font-size: 1rem;
   color: #333;
+}
+
+.input-group-text {
+  min-width: 33%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: #f8f9fa;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #ced4da;
+  /* border-left: none; */
+}
+
+.input-group-text-measure {
+  min-width: 13%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: #f8f9fa;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #ced4da;
+  border-left: none;
+}
+
+.input-group {
+  display: flex;
+  /* justify-content: space-between; */
+  align-items: center;
 }
 
 .filter-select {

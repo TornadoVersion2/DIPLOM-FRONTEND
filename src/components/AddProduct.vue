@@ -8,9 +8,11 @@ import productsService from '../services/products.service'
 import imagesService from '../services/images.service'
 import authService from '../services/auth.service'
 import filterService from '../services/filter.service'
+import filterDescriptionService from '../services/filter-description.service'
 import type { Category } from '../types/categories.types'
 import type { Product } from '../types/product.types'
-import type { Filter, FilterProduct } from '../types/filter.types'
+import type { CreateFilterProductDto, Filter, FilterDescription, FilterProduct } from '../types/filter.types'
+import filterProductService, { FilterProductService } from '@/services/filter-product.service'
 
 const router = useRouter()
 const error = ref('')
@@ -21,10 +23,16 @@ const selectedCategoryId = ref(0)
 const categories = ref<Category[]>([])
 const { user } = storeToRefs(useDefaultStore())
 const filters = ref<Filter[]>([])
-const noneRangedFilterNames = ref<string[]>([])
-const RangedFilterNames = ref<string[]>([])
-const RangedProductFilters = ref<Map<Filter, number>>(reactive(new Map()))
-const noneRangedProductFilters = ref<number[]>([])
+const filterDescriptions = ref<FilterDescription[]>([])
+const filterProduct = ref(reactive<Map<number, CreateFilterProductDto>>(new Map()))
+// const filterDescriptions = ref<FilterDescription[]>([])
+// const product = ref<Product>({
+
+// })
+// const noneRangedFilterNames = ref<string[]>([])
+// const RangedFilterNames = ref<string[]>([])
+// const RangedProductFilters = ref<Map<Filter, number>>(reactive(new Map()))
+// const noneRangedProductFilters = ref<number[]>([])
 
 
 const form = ref<Omit<Product, 'id'>>({
@@ -33,12 +41,12 @@ const form = ref<Omit<Product, 'id'>>({
   price: 0,
   quantity: 0,
   categoryId: 0,
-  managerId: 0
+  managerId: user.value.id
 })
 
 const fetchCategories = async () => {
   try {
-    categories.value = await categoriesService.getAllCategories()
+    categories.value = await categoriesService.getAll()
   } catch (err) {
     error.value = 'Произошла ошибка при загрузке категорий'
     console.error('Error fetching categories:', err)
@@ -48,16 +56,21 @@ const fetchCategories = async () => {
 const fetchFilters = async () => {
   if (form.value.categoryId > 0) {
     try {
-      filters.value = await filterService.getFilterByCategory(form.value.categoryId)
-      console.log("Filters: ")
-      filters.value.forEach(filter => console.log(filter))
+      filters.value = await filterService.getByCategory(form.value.categoryId)
+      // console.log("Filters: ")
+      // filters.value.forEach(filter => console.log(filter))
+      filterDescriptions.value = await filterDescriptionService.getByCategory(selectedCategoryId.value)
+      // filterProduct.value =
+      // filterDescriptions.value.forEach((desc) => filterProduct.value.set(desc.id, {}))
+      // console.log("FilterDescriptions: ")      
+      // filterDescriptions.value.forEach(filter => console.log(filter))
+      // filterDescriptions.value.forEach((desc) => filterProduct.value.push())
     } catch (err) {
       error.value = 'Произошла ошибка при загрузке фильтров'
       console.error('Error fetching filters:', err)
     }
   }
-
-  filtrateFilters()
+  // filtrateFilters()
 }
 
 const handleImageUpload = (event: Event) => {
@@ -80,11 +93,18 @@ const handleSubmit = async () => {
     const prod = await productsService.createProduct({
       ...form.value,
       imageUrl,
-      managerId: user.value.id,
+      // managerId: user.value.id,
 
     })
-    noneRangedProductFilters.value.forEach((id) => filterService.createFilterProducts({ filterId: id, productId: prod.id }))
-    RangedProductFilters.value.forEach((value, filter) => filterService.createFilterProducts({ filterId: filter.id, productId: prod.id, value }))
+
+    filterProduct.value.forEach(async (filter) => {
+      await filterProductService.create({
+        ...filter,
+        productId: prod.id
+      })
+    })
+    // noneRangedProductFilters.value.forEach((id) => filterService.create({ filterId: id, productId: prod.id }))
+    // RangedProductFilters.value.forEach((value, filter) => filterService.create({ filterId: filter.id, productId: prod.id, value }))
     router.push('/ProductsForManager')
   } catch (err) {
     error.value = 'Произошла ошибка при создании товара'
@@ -93,19 +113,31 @@ const handleSubmit = async () => {
     loading.value = false
   }
 }
+const handleUnrangedFilter = async (id: number, filterId: number) => {
+  filterProduct.value.set(id, { filterId: filterId, productId: 0 })
 
-const handleChangeNoneRangedFilter = async (id: string) => {
-  noneRangedProductFilters.value.push(Number(id))
 }
 
-const handleChangeRangedFilter = async (id: Filter, value: string) => {
-  RangedProductFilters.value.set(id, Number(value))
-}
+const handleRangedFilter = async (descId: number, filterId: number, value: number) => {
+  console.log("handleRanged")
+  filterProduct.value.set(descId, { filterId, productId: 0, value })
 
-const filtrateFilters = () => {
-  noneRangedFilterNames.value = [...new Set(filters.value.filter((filter) => !filter.isRanged).map((filter) => filter.name))]
-  RangedFilterNames.value = [...new Set(filters.value.filter((filter) => filter.isRanged).map((filter) => filter.name))]
 }
+//   noneRangedProductFilters.value.push(Number(id))
+// }
+
+// const handleChangeNoneRangedFilter = async (id: string) => {
+//   noneRangedProductFilters.value.push(Number(id))
+// }
+
+// const handleChangeRangedFilter = async (id: Filter, value: string) => {
+//   RangedProductFilters.value.set(id, Number(value))
+// }
+
+// const filtrateFilters = () => {
+//   noneRangedFilterNames.value = [...new Set(filters.value.filter((filter) => !filter.isRanged).map((filter) => filter.name))]
+//   RangedFilterNames.value = [...new Set(filters.value.filter((filter) => filter.isRanged).map((filter) => filter.name))]
+// }
 
 
 watch([selectedCategoryId], async () => {
@@ -158,11 +190,34 @@ onMounted(() => {
       </div>
 
       <label v-if="filters.length > 0">Фильтры:</label>
-      <div v-if="form.categoryId > 0" v-for="filterName in noneRangedFilterNames" class="form-group">
-        <select class="form-select" @change="(e) => handleChangeNoneRangedFilter(e.currentTarget!.value)">
-          <option selected>{{ filterName }}</option>
+      <div v-if="form.categoryId > 0" v-for="filterDesc in filterDescriptions" class="form-group">
+        <select v-if="!filterDesc.measureName" class="form-select"
+          @change="(e: any) => handleUnrangedFilter(filterDesc.id, e.currentTarget.value)">
+          <option selected>{{ filterDesc.name }}</option>
           <div v-for="filter in filters">
-            <option :value="filter.id" v-if="filter.name === filterName">
+            <option :value="filter.id" v-if="filter.descriptionId === filterDesc.id">
+              {{ filterDesc.name }} {{ filter.possibleValue }}
+            </option>
+          </div>
+        </select>
+        <div v-else>
+          <div v-for="filter in filters">
+            <div class="input-group" v-if="filter.descriptionId === filterDesc.id">
+              <span class="input-group-text">{{ filterDesc.name }}</span>
+              <input id="" type="number" min="0" step="0.01" class="input-group-text"
+                @change="(e: any) => handleRangedFilter(filterDesc.id, filter.id, e.currentTarget.value,)" required
+                placeholder="Введите значение фильтра" />
+              <span class="input-group-text-measure">{{ filterDesc.measureName }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- <div v-if="form.categoryId > 0" v-for="filterName in noneRangedFilterNames" class="form-group">
+        <select class="form-select" @change="(e) => handleChangeNoneRangedFilter(e.currentTarget!.value)">
+          <option selected>{{ filterDesc }}</option>
+          <div v-for="filter in filters">
+            <option :value="filter.id" v-if="filter.name === filterDesc">
               {{ filter.name }} {{ filter.possibleValue }}
             </option>
           </div>
@@ -179,7 +234,7 @@ onMounted(() => {
               placeholder="Введите значение фильтра" />
           </div>
         </div>
-      </div>
+      </div> -->
 
       <div class="form-group">
         <label for="image">Изображение:</label>
@@ -258,6 +313,34 @@ onMounted(() => {
 .search-input {
   flex: 1;
   margin-bottom: 10px;
+}
+
+.input-group {
+  display: flex;
+  /* justify-content: space-between; */
+  align-items: center;
+}
+
+.input-group-text {
+  min-width: 33%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: #f8f9fa;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #ced4da;
+  border-left: none;
+}
+
+.input-group-text-measure {
+  min-width: 13%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: #f8f9fa;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #ced4da;
+  border-left: none;
 }
 
 .form-actions {
